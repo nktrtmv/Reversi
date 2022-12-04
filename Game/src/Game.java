@@ -1,19 +1,62 @@
+import java.util.ArrayList;
 import java.util.InputMismatchException;
 import java.util.Scanner;
 
+/**
+ * Класс отвечающий за процесс игры и все что с этим связано
+ */
 public class Game {
+    /**
+     * Константа - режим игры против игрока
+     */
     private static final int PVP = 1;
+
+    /**
+     * Константа - режим игры против компьютера
+     */
     private static final int PVE = 2;
+
+    /**
+     * Константа - режим игры против компьютера (сложно)
+     */
     private static final int HARD_PVE = 3;
+
+    /**
+     * Константа - черные
+     */
     private static final int BLACK = -1;
+
+    /**
+     * Константа - белые
+     */
     private static final int WHITE = 1;
 
-    Player black, white;
-    int currentPLayer;
-    Board board;
-    int mode;
+    /**
+     * Игроки за белые и черные фишки -
+     */
+    private User black, white;
 
-    static Integer inputInt(int left, int right) {
+    /**
+     * Текущий игрок (определение чей ход)
+     */
+    private int currentPLayer;
+
+    /**
+     * Игровая доска
+     */
+    private Board board;
+
+    /**
+     * Список игровых досок (ходов)
+     */
+    private final ArrayList<Board> allMoves;
+
+    static int maxRes = 0, maxResPlayer = BLACK;
+
+    /**
+     * Вводит числа в диапазоне
+     */
+    public static Integer inputInt(int left, int right) {
         Scanner input = new Scanner(System.in);
         try {
             System.out.print("Введите число от " + left + " до " + right + ": ");
@@ -31,6 +74,8 @@ public class Game {
 
     public Game() {
         board = new Board();
+        allMoves = new ArrayList<>();
+        allMoves.add(new Board(board.data));
         currentPLayer = BLACK;
         System.out.println("Выберите против кого играть: ");
         System.out.println("""
@@ -43,11 +88,11 @@ public class Game {
             temp = inputInt(1, 3);
         } while (temp == null);
 
-        mode = temp;
+        int mode = temp;
 
         if (mode == PVP) {
-            black = new User();
-            white = new User();
+            black = new Player(BLACK);
+            white = new Player(WHITE);
             return;
         }
 
@@ -64,66 +109,99 @@ public class Game {
 
         switch (user) {
             case 1 -> {
-                black = new User();
+                black = new Player(BLACK);
                 switch (mode) {
-                    case PVE -> white = new AI(false);
-                    case HARD_PVE -> white = new AI(true);
+                    case PVE -> white = new AI(false, WHITE);
+                    case HARD_PVE -> white = new AI(true, WHITE);
                 }
             }
             case 2 -> {
-                white = new User();
+                white = new Player(WHITE);
                 switch (mode) {
-                    case PVE -> black = new AI(false);
-                    case HARD_PVE -> black = new AI(true);
+                    case PVE -> black = new AI(false, BLACK);
+                    case HARD_PVE -> black = new AI(true, BLACK);
                 }
             }
         }
     }
 
-    public void startGame() {
-        switch (mode) {
-            case PVP -> playPVP();
-            case PVE -> playPVE();
-            case HARD_PVE -> playHardPVE();
-        }
-    }
+    /**
+     * Процесс игры
+     */
+    public void play() {
+        boolean flag = false;
+        while (!isOver(flag)) {
+            boolean[][] possibleMoves = Board.getPossibleMoves(currentPLayer, board.data);
+            Point score = board.countPoints();
+            Scanner input = new Scanner(System.in);
+            System.out.println("\n========================================================================");
+            System.out.println("\nЧерные - " + score.x() + ", Белые - " + score.y());
+            System.out.println("\nХод " + (currentPLayer == BLACK ? "черных:" : "белых:"));
+            if (allMoves.size() > 2) {
+                board.print();
+                System.out.println("\n========================================================================");
+                System.out.println("""
 
-    private void playPVP() {
-        while (!isOver()) {
-            boolean[][] possibleMoves = board.getPossibleMoves(currentPLayer);
-            Pair<Integer, Integer> score = board.countPoints();
-            System.out.println("\nЧерные - " + score.first() + ", Белые - " + score.second());
-            System.out.println("Ход " + (currentPLayer == BLACK ? "черных:" : "белых:"));
+                        Вы можете отменить последние два хода (ваш и вашего противника)
+                        Для отмены хода введите 'yes', для продолжения игры введите любую другую строку""");
+                if (input.next().equals("yes")) {
+                    board = new Board(allMoves.get(allMoves.size() - 3).data);
+                    possibleMoves = Board.getPossibleMoves(currentPLayer, board.data);
+                    allMoves.remove(allMoves.size() - 1);
+                    allMoves.remove(allMoves.size() - 1);
+                }
+            }
+            flag = User.getListOfPossibleMoves(possibleMoves).isEmpty();
             board.print(possibleMoves);
             makeMove(possibleMoves);
+            score = board.countPoints();
+            if (score.x() > maxRes) {
+                maxRes = score.x();
+                maxResPlayer = BLACK;
+            }
+            if (score.y() > maxRes) {
+                maxRes = score.y();
+                maxResPlayer = WHITE;
+            }
+            allMoves.add(new Board(board.data));
             currentPLayer *= -1;
+            System.out.println("""
+
+                    ==============================================================
+                    Если вы желаете завершить партию введите "exit", если вы желаете продолжить игру - введите любую другую строку
+                    ==============================================================
+                    """);
+            if (input.next().equals("exit")) {
+                break;
+            }
         }
+        board.print();
+        Point score = board.countPoints();
+        System.out.println("\nЧерные - " + score.x() + ", Белые - " + score.y());
+        System.out.println("Максимальный результат за сессию: " + maxRes + " - " + (maxResPlayer == BLACK ? "черные" : "белые"));
         System.out.println("Game Over");
     }
 
-    public void playPVE() {
-
-    }
-
-    public void playHardPVE() {
-
-    }
-
+    /**
+     * Сделать ход
+     */
     private void makeMove(boolean[][] possibleMoves) {
-
-        Pair<Integer, Integer> move = null;
+        Point move = null;
         switch (currentPLayer) {
-            case BLACK -> move = black.chooseMove(possibleMoves);
-            case WHITE -> move = white.chooseMove(possibleMoves);
+            case BLACK -> move = black.makeMove(possibleMoves, board);
+            case WHITE -> move = white.makeMove(possibleMoves, board);
         }
 
         if (move != null) {
-            board.data[move.first()][move.second()] = currentPLayer;
+            board.data[move.y()][move.x()] = currentPLayer;
             board.update(currentPLayer, move);
         }
     }
 
-    private boolean isOver() {
-        return board.isFull();
+    /**
+     * Закончена ли игра - есть ли победитель
+     */
+    private boolean isOver(boolean flag) {
+        return board.isFull() || User.getListOfPossibleMoves(Board.getPossibleMoves(currentPLayer, board.data)).isEmpty() && flag;
     }
 }
