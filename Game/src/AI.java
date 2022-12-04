@@ -58,6 +58,9 @@ public class AI implements User {
                 maxTemp = rValue;
             }
         }
+        if (total == null){
+            total = moves.get(0);
+        }
         System.out.printf("Сделан ход: '" + totalCount + "' -- x = " + total.x() + "; y = " + total.y() + "\n");
         return total;
     }
